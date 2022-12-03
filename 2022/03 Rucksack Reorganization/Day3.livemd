@@ -1,0 +1,15 @@
+# Rucksack Reorganization
+
+## Part 2
+
+```elixir
+a = MapSet.new('vJrwpWtwJgWrhcsFMMfFFhFp')
+b = MapSet.new('jqHRNqRjqzjGDLGLrsFMfFZSrLrFZsSL')
+c = MapSet.new('PmmdzqPrVvPwwTWBwg')
+
+[a, b, c]
+```
+
+```elixir
+MapSet.intersection(MapSet.intersection(a, b), c)
+```
