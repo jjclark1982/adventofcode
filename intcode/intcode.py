@@ -47,12 +47,12 @@ class Intcode(object):
         return self.memory[addr]
         
     def __setitem__(self, param: "Parameter", value: int):
-        if param.mode == ParameterMode.Immediate:
-            raise NotImplementedError("Cannot write to Parameter in Immediate Mode")
-        elif param.mode == ParameterMode.Position:
+        if param.mode == ParameterMode.Position:
             addr = param.value
         elif param.mode == ParameterMode.Relative:
             addr = param.value + self.relative_base
+        else:
+            raise NotImplementedError("Unsupported ParameterMode")
         while len(self.memory) <= addr:
             self.memory.append(0)
         self.memory[addr] = value
@@ -101,7 +101,7 @@ class ParameterMode(IntEnum):
     Relative = 2
 
     def __str__(self):
-        return ["*", "", "+"][self.value]
+        return ["*", " ", "+"][self.value]
 
 
 class Parameter(object):
@@ -120,7 +120,7 @@ class Parameter(object):
             self.mode = ParameterMode(mode)
 
     def __str__(self):
-        return f"{str(self.mode)}{self.value}"
+        return f"{str(self.mode)}{self.value}".rjust(4, " ")
 
 
 class Operation(object):
