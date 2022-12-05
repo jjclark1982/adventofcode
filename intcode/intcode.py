@@ -13,14 +13,17 @@ class Intcode(object):
 
     Usage: Intcode(program).run(input=[...]).output
     """
+    memory: List[int]
+    pc: int = 0
+    relative_base: int = 0
+    halted: bool = False
+    num_cycles: int = 0
+
     def __init__(self, program: List[int], input=[]):
         self.memory = list(program)
-        self.halted = False
         self.input = deque(input)
         self.output = []
-        self.pc = 0
-        self.relative_base = 0
-        self.cycles = 0
+        self.breakpoints = set()
         
     def __str__(self):
         lines = [
@@ -81,7 +84,7 @@ class Intcode(object):
             print(f"{self.pc: 6d}: {instr}")
         self.pc += instr.width
         self.run_instruction(instr)
-        self.cycles += 1
+        self.num_cycles += 1
     
     def run(self, input=None, pc=None, verbose=False):
         if input:
@@ -90,6 +93,8 @@ class Intcode(object):
             self.pc = pc
         while self.pc < len(self.memory):
             self.step(verbose=verbose)
+            if self.pc in self.breakpoints:
+                break
             if self.halted:
                 break
         return self.output
@@ -142,7 +147,7 @@ class Operation(object):
         return self.__class__.__name__.ljust(18)
     
     def operate(self, state: Intcode, **params):
-        raise NotImplementedError("Subclasses should override this")
+        raise ValueError(f"Invalid instruction with opcode {self.opcode}")
     
     @classmethod
     def width(cls):
