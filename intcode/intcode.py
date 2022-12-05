@@ -1,4 +1,5 @@
 from collections import deque
+from queue import SimpleQueue
 from typing import List, Tuple, Iterable
 from enum import IntEnum
 
@@ -18,13 +19,19 @@ class Intcode(object):
     relative_base: int = 0
     halted: bool = False
     num_cycles: int = 0
-    output = []
+    input: SimpleQueue
+    output: List[int]
 
     def __init__(self, program: List[int], input:Iterable=None, output=None):
         self.memory = list(program)
-        if input is None:
-            input = []
-        self.input = iter(input)
+        if callable(getattr(input, 'get', None)):
+            self.input = input
+        else:
+            self.input = SimpleQueue()
+        if callable(getattr(input, '__iter__', None)):
+            for i in input:
+                self.input.put(i)
+        
         if output is None:
             output = []
         self.output = output
@@ -37,7 +44,7 @@ class Intcode(object):
         return '\n'.join(lines)
     
     def __repr__(self):
-        return f"<Intcode pc:{self.pc}/{len(self.memory)} in:{len(self.input)} out:{self.output}>"
+        return f"<Intcode pc:{self.pc}/{len(self.memory)} in:{self.input.qsize()} out:{self.output}>"
     
     def __getitem__(self, param: "Parameter") -> int:
         # Handle dereferencing a param or using an immediate value
@@ -189,7 +196,7 @@ class Input(Operation):
     num_params = 1
 
     def operate(self, state: Intcode, result: Parameter):
-        state[result] = next(state.input)
+        state[result] = state.input.get()
 
 
 class Output(Operation):
