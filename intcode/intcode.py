@@ -31,7 +31,7 @@ class Intcode(object):
         if callable(getattr(input, '__iter__', None)):
             for i in input:
                 self.input.put(i)
-        
+
         if output is None:
             output = []
         self.output = output
@@ -158,7 +158,7 @@ class Operation(object):
             return str(self.opcode)
         return self.__class__.__name__.ljust(18)
     
-    def operate(self, state: Intcode, **params):
+    def operate(self, machine: Intcode, **params):
         raise ValueError(f"Invalid instruction with opcode {self.opcode}")
     
     @classmethod
@@ -179,82 +179,82 @@ class Add(Operation):
     opcode = 1
     num_params = 3
 
-    def operate(self, state: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
-        state[result] = state[lhs] + state[rhs]
+    def operate(self, machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
+        machine[result] = machine[lhs] + machine[rhs]
 
 
 class Multiply(Operation):
     opcode = 2
     num_params = 3
 
-    def operate(self, state: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
-        state[result] = state[lhs] * state[rhs]
+    def operate(self, machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
+        machine[result] = machine[lhs] * machine[rhs]
 
 
 class Input(Operation):
     opcode = 3
     num_params = 1
 
-    def operate(self, state: Intcode, result: Parameter):
-        state[result] = state.input.get()
+    def operate(self, machine: Intcode, result: Parameter):
+        machine[result] = machine.input.get()
 
 
 class Output(Operation):
     opcode = 4
     num_params = 1
 
-    def operate(self, state: Intcode, param: Parameter):
-        state.output.append(state[param])
+    def operate(self, machine: Intcode, param: Parameter):
+        machine.output.append(machine[param])
 
 
 class JumpIfTrue(Operation):
     opcode = 5
     num_params = 2
 
-    def operate(self, state: Intcode, test: Parameter, addr: Parameter):
-        if state[test] != 0:
-            state.pc = state[addr]
+    def operate(self, machine: Intcode, test: Parameter, addr: Parameter):
+        if machine[test] != 0:
+            machine.pc = machine[addr]
 
 
 class JumpIfFalse(Operation):
     opcode = 6
     num_params = 2
 
-    def operate(self, state: Intcode, test: Parameter, addr: Parameter):
-        if state[test] == 0:
-            state.pc = state[addr]
+    def operate(self, machine: Intcode, test: Parameter, addr: Parameter):
+        if machine[test] == 0:
+            machine.pc = machine[addr]
 
 
 class LessThan(Operation):
     opcode = 7
     num_params = 3
 
-    def operate(self, state, lhs: Parameter, rhs: Parameter, result: Parameter):
-        state[result] = int(state[lhs] < state[rhs])
+    def operate(self, machine, lhs: Parameter, rhs: Parameter, result: Parameter):
+        machine[result] = int(machine[lhs] < machine[rhs])
 
 
 class Equals(Operation):
     opcode = 8
     num_params = 3
 
-    def operate(self, state, lhs: Parameter, rhs: Parameter, result: Parameter):
-        state[result] = int(state[lhs] == state[rhs])
+    def operate(self, machine, lhs: Parameter, rhs: Parameter, result: Parameter):
+        machine[result] = int(machine[lhs] == machine[rhs])
 
 
 class AdjustRelativeBase(Operation):
     opcode = 9
     num_params = 1
 
-    def operate(self, state: Intcode, value: Parameter):
-        state.relative_base += state[value]
+    def operate(self, machine: Intcode, value: Parameter):
+        machine.relative_base += machine[value]
 
 
 class Halt(Operation):
     opcode = 99
     num_params = 0
 
-    def operate(self, state: Intcode):
-        state.halted = True
+    def operate(self, machine: Intcode):
+        machine.halted = True
 
 
 class Instruction(object):

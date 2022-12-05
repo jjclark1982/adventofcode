@@ -9,7 +9,7 @@ class TestOperation(TestCase):
             op = Operation(0)
         with self.subTest("should error when trying to execute"):
             with self.assertRaises(ValueError):
-                op.operate(state=None)
+                op.operate(machine=None)
 
     def test_instantiate_from_opcode(self):
         operations = Operation.__subclasses__()
@@ -30,33 +30,33 @@ class TestOperation(TestCase):
 
 class TestParameter(TestCase):
     def test_position_mode(self):
-        state = Intcode([1,2,3])
+        machine = Intcode([1,2,3])
         param = Parameter(1, ParameterMode.Position)
-        self.assertEqual(state[param], 2)
+        self.assertEqual(machine[param], 2)
 
     def test_immediate_mode(self):
-        state = Intcode([1, 2, 3])
+        machine = Intcode([1, 2, 3])
         param = Parameter(1, ParameterMode.Immediate)
-        self.assertEqual(state[param], 1)
+        self.assertEqual(machine[param], 1)
 
     def test_relative_mode(self):
-        state = Intcode([1, 2, 3])
-        state.relative_base = 1
+        machine = Intcode([1, 2, 3])
+        machine.relative_base = 1
         param = Parameter(1, ParameterMode.Relative)
-        self.assertEqual(state[param], 3)
+        self.assertEqual(machine[param], 3)
 
 
 class TestProgram(TestCase):
     def check_program(self, program=[], input=[], expected_memory=None, expected_output=None):
-        state = Intcode(program, input=input)
+        machine = Intcode(program, input=input)
         with self.subTest(msg="program runs without error"):
-            state.run()
+            machine.run()
         if expected_output is not None:
             with self.subTest(msg="output matches expectation"):
-                self.assertListEqual(state.output, expected_output)
+                self.assertListEqual(machine.output, expected_output)
         if expected_memory is not None:
             with self.subTest(msg="resulting memory matches expectation"):
-                self.assertListEqual(state.memory, expected_memory)
+                self.assertListEqual(machine.memory, expected_memory)
 
     def test_empty_program(self):
         self.check_program([])
