@@ -5,11 +5,11 @@ from pathlib import Path
 
 class TestCLI(TestCase):
     def test_import(self):
-        from intcode.cli import main as cli_main
-        self.assertIsNotNone(cli_main)
+        from intcode.ascii import main as ascii_main
+        self.assertIsNotNone(ascii_main)
 
     def test_hello_world(self):
-        cli_path = Path(__file__).parent.parent / 'cli.py'
+        cli_path = Path(__file__).parent.parent / 'ascii.py'
         hello_world_path = Path(__file__).parent / 'hello_world.ints'
 
         process = Popen([cli_path, hello_world_path], stdin=PIPE, stdout=PIPE)
