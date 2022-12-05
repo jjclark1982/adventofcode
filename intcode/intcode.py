@@ -1,7 +1,13 @@
-from collections import deque
 from queue import SimpleQueue
-from typing import List, Tuple, Iterable
-from enum import IntEnum
+from typing import List, Tuple, Iterable, Union
+from enum import Enum, IntEnum
+
+
+class MachineState(Enum):
+    Paused = 1
+    Running = 2
+    Blocked = 3
+    Halted = 4
 
 
 class Intcode(object):
@@ -17,7 +23,7 @@ class Intcode(object):
     memory: List[int]
     pc: int = 0
     relative_base: int = 0
-    halted: bool = False
+    state: MachineState = MachineState.Paused
     num_cycles: int = 0
     input: SimpleQueue
     output: List[int]
@@ -46,69 +52,76 @@ class Intcode(object):
     def __repr__(self):
         return f"<Intcode pc:{self.pc}/{len(self.memory)} in:{self.input.qsize()} out:{self.output}>"
     
-    def __getitem__(self, param: "Parameter") -> int:
-        # Handle dereferencing a param or using an immediate value
-        param = Parameter(param)
-        if param.mode == ParameterMode.Immediate:
-            return param.value
-        elif param.mode == ParameterMode.Position:
-            addr = param.value
-        elif param.mode == ParameterMode.Relative:
-            addr = param.value + self.relative_base
+    def __getitem__(self, key: Union[int, slice, "Parameter"]) -> int:
+        # Handle loading a slice of memory
+        if type(key) is slice:
+            return [self[i] for i in range(key.start, key.stop + 1, key.step or 1)]
+        # Handle loading a single memory address
+        elif type(key) is int:
+            addr = key
+        # Handle loading specific parameter types
+        elif key.mode == ParameterMode.Immediate:
+            return key.value
+        elif key.mode == ParameterMode.Position:
+            addr = key.value
+        elif key.mode == ParameterMode.Relative:
+            addr = key.value + self.relative_base
         else:
-            raise NotImplementedError("Unsupported ParameterMode")
+            raise NotImplementedError(f"Unsupported memory address {key}")
+
         if addr >= len(self.memory):
             return 0
         return self.memory[addr]
         
-    def __setitem__(self, param: "Parameter", value: int):
-        if param.mode == ParameterMode.Position:
-            addr = param.value
-        elif param.mode == ParameterMode.Relative:
-            addr = param.value + self.relative_base
+    def __setitem__(self, key: Union[int, "Parameter"], value: int):
+        if type(key) is int:
+            addr = key
+        elif key.mode == ParameterMode.Position:
+            addr = key.value
+        elif key.mode == ParameterMode.Relative:
+            addr = key.value + self.relative_base
         else:
-            raise NotImplementedError("Unsupported ParameterMode")
+            raise NotImplementedError(f"Unsupported ParameterMode {key.mode}")
+
+        # Expand memory as needed (slow for very high addresses)
         while len(self.memory) <= addr:
             self.memory.append(0)
         self.memory[addr] = value
 
     def instruction_at(self, address: int) -> "Instruction":
-        return Instruction(self.memory, address)
+        return Instruction(*self[address:address+3])
     
-    def next_instruction(self) -> "Instruction":
-        return self.instruction_at(self.pc)
-    
-    def all_instructions(self) -> List["Instruction"]:
-        instrs = []
+    def all_instructions(self) -> List[Tuple[int, "Instruction"]]:
+        instructions = []
         pc = 0
         while pc < len(self.memory):
             instr = self.instruction_at(pc)
-            instrs.append((pc, instr))
+            instructions.append((pc, instr))
             pc += instr.width
-        return instrs
+        return instructions
     
-    def run_instruction(self, instr: "Instruction"):
-        instr.run(self)
-
     def step(self, verbose=False):
-        instr = self.instruction_at(self.pc)
+        instruction = self.instruction_at(self.pc)
         if verbose:
-            print(f"{self.pc: 6d}: {instr}")
-        self.pc += instr.width
-        self.run_instruction(instr)
+            print(f"{self.pc: 6d}: {instruction}")
+        self.pc += instruction.width
+        instruction.run(self)
         self.num_cycles += 1
     
-    def run(self, input=None, pc=None, verbose=False):
-        if input:
-            self.input = deque(input)
+    def run(self, pc=None, verbose=False):
         if pc is not None:
             self.pc = pc
-        while self.pc < len(self.memory):
-            self.step(verbose=verbose)
-            if self.pc in self.breakpoints:
-                break
-            if self.halted:
-                break
+        self.state = MachineState.Running
+        while self.state == MachineState.Running:
+            if self.pc >= len(self.memory):
+                self.state = MachineState.Halted
+
+            elif self.pc in self.breakpoints:
+                self.state = MachineState.Paused
+
+            else:
+                self.step(verbose=verbose)
+
         return self.output
 
 
@@ -141,7 +154,9 @@ class Parameter(object):
 
 
 class Operation(object):
-    """An Operation is an abstract form of something the machine can do."""
+    """
+    An Operation is an abstract form of something the machine can do.
+    """
     
     opcode = None
     num_params = 0
@@ -153,10 +168,21 @@ class Operation(object):
             if OpClass:
                 self.__class__ = OpClass
 
+    def __repr__(self):
+        if self.__class__ is Operation:
+            return f"{self.__class__.__name__}({self.opcode})"
+        else:
+            return f"{self.__class__.__name__}()"
+
     def __str__(self):
+        return self.name.ljust(18)
+
+    @property
+    def name(self):
         if self.__class__ is Operation:
             return str(self.opcode)
-        return self.__class__.__name__.ljust(18)
+        else:
+            return self.__class__.__name__
     
     def operate(self, machine: Intcode, **params):
         raise ValueError(f"Invalid instruction with opcode {self.opcode}")
@@ -254,46 +280,41 @@ class Halt(Operation):
     num_params = 0
 
     def operate(self, machine: Intcode):
-        machine.halted = True
+        machine.state = MachineState.Halted
 
 
 class Instruction(object):
-    """An Instruction is a concrete instance of an Operation and its parameters"""
+    """
+    An Instruction is a concrete instance of an Operation and its parameters
+    """
 
     value: int
     operation: Operation
     parameters: List[Parameter]
     width: int = 1
 
-    def __init__(self, mem: List[int], addr: int):
-        self.value = mem[addr]
+    def __init__(self, value: int, *param_values: Tuple[int]):
+        self.value = value
         opcode, modes = self.decode(self.value)
         self.operation = Operation(opcode)
-        if self.operation:
-            param_values = mem[addr + 1: addr + 1 + self.operation.num_params]
-        else:
-            param_values = []
+        self.width = 1 + self.operation.num_params
 
-        self.params = []
-        for i in range(len(param_values)):
+        self.parameters = []
+        for i in range(self.operation.num_params):
             value = param_values[i]
             mode = modes[i]
-            self.params.append(Parameter(value, mode))
-
-        self.width = 1 + len(self.params)
+            self.parameters.append(Parameter(value, mode))
 
     def __str__(self):
-        param_strs = [str(p) for p in self.params]
-        if self.operation:
-            return ' '.join([str(self.operation)] + param_strs)
-        else:
-            return f"{self.value}"
+        param_strs = [str(p) for p in self.parameters]
+        return ' '.join([str(self.operation)] + param_strs)
 
     def __repr__(self):
-        return f"[{self}]"
+        args = [self.value] + [p.value for p in self.parameters]
+        return f"Instruction({', '.join(str(a) for a in args)})"
 
     def run(self, machine: Intcode):
-        self.operation.operate(machine, *self.params)
+        self.operation.operate(machine, *self.parameters)
 
     @staticmethod
     def decode(instruction: int) -> Tuple[int, List[int]]:
