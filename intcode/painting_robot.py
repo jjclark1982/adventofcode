@@ -14,21 +14,38 @@ on the peripheral.
 There should be a simple interface to view all output as ints or ASCII.
 """
 
+translations = {
+    'N': np.array([ 0,-1]),
+    'S': np.array([ 0, 1]),
+    'E': np.array([ 1, 0]),
+    'W': np.array([-1, 0]),
+}
+rotations = {
+    'R': np.matrix([[0, 1], [-1, 0]]),
+    'L': np.matrix([[0,-1], [ 1, 0]]),
+}
+
+
 class PaintingRobot:
     def __init__(self):
-        self.grid = np.zeros((100, 100), dtype=bool)
-        self.loc = (50, 50)
-        self.direction = (-1, 0)
+        self.grid = np.zeros((200, 200), dtype=bool)
+        self.heading = translations['N']
+        self.loc = np.array([100, 100])
         self.n_commands = 0
 
     def get(self, **kwargs):
         return self.grid[self.loc]
 
-    def append(self, command):
+    def put(self, command):
         if self.n_commands % 2 == 0:
             # paint current location
             self.grid[self.loc] = command
         else:
             # turn 90 degrees
-            pass
+            if command == 0:
+                self.heading = np.array(rotations['L'] @ self.heading)[0]
+            elif command == 1:
+                self.heading = np.array(rotations['R'] @ self.heading)[0]
+            # move forward 1 step
+            self.loc += self.heading
         self.n_commands += 1
