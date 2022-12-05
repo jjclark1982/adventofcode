@@ -1,1 +1,1 @@
-from .intcode import Intcode, Operation, Parameter, ParameterMode
+from .intcode import Intcode, Parameter, ParameterMode, Operation, Instruction

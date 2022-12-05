@@ -1,5 +1,5 @@
 from collections import deque
-from typing import List, Tuple
+from typing import List, Tuple, Iterable
 from enum import IntEnum
 
 
@@ -18,11 +18,16 @@ class Intcode(object):
     relative_base: int = 0
     halted: bool = False
     num_cycles: int = 0
+    output = []
 
-    def __init__(self, program: List[int], input=[]):
+    def __init__(self, program: List[int], input:Iterable=None, output=None):
         self.memory = list(program)
-        self.input = deque(input)
-        self.output = []
+        if input is None:
+            input = []
+        self.input = iter(input)
+        if output is None:
+            output = []
+        self.output = output
         self.breakpoints = set()
         
     def __str__(self):
@@ -184,7 +189,7 @@ class Input(Operation):
     num_params = 1
 
     def operate(self, state: Intcode, result: Parameter):
-        state[result] = state.input.popleft()
+        state[result] = next(state.input)
 
 
 class Output(Operation):
