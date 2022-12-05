@@ -1,4 +1,6 @@
-from .intcode import Intcode
+#!/usr/bin/env python3
+
+from intcode import Intcode
 
 
 def main():
@@ -22,7 +24,8 @@ def main():
     #             break
 
     output = machine.run()
-    print(''.join([*map(chr, output)]))
+    for c in output:
+        sys.stdout.write(chr(c))
 
 
 if __name__ == '__main__':
