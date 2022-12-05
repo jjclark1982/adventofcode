@@ -221,7 +221,7 @@ class Instruction(object):
     def run(self, machine: Intcode):
         self.operate(machine, *self.parameters)
 
-    def operate(self, machine: Intcode, **params):
+    def operate(self, machine: Intcode, *params):
         raise ValueError(f"Invalid instruction with opcode {self.opcode}")
 
 
@@ -308,16 +308,18 @@ class Halt(Instruction):
 
 
 def main():
-    import os
-    from pathlib import Path
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('program_file', type=argparse.FileType('r'))
+    args = parser.parse_args()
 
-    program_file = Path(os.argv[1])
-    with program_file.open() as f:
-        program = [*map(int, f.read().strip().split(','))]
+    program = [*map(int, args.program_file.read().strip().split(','))]
+    args.program_file.close()
+
     machine = Intcode(program)
-    # TODO: take input from stdin
+
     output = machine.run()
-    print(output)
+    print(''.join([*map(chr, output)]))
 
 
 if __name__ == '__main__':
