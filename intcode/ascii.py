@@ -1,10 +1,30 @@
 #!/usr/bin/env python3
 
-from intcode import Intcode
+import sys
+
+
+class ASCIIPeripheral:
+    pass
+
+
+class CLIPeripheral:
+    def __iter__(self):
+        while sys.stdin.readable():
+            line = sys.stdin.readline()
+            for value in line.strip().split(','):
+                if value:
+                    yield int(value)
+                else:
+                    break
+
+    @staticmethod
+    def put(value):
+        sys.stdout.write(chr(value))
+        sys.stdout.flush()
 
 
 def main():
-    import sys
+    from intcode import Intcode
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('program_file', type=argparse.FileType('r'))
@@ -13,19 +33,9 @@ def main():
     program = [*map(int, args.program_file.read().strip().split(','))]
     args.program_file.close()
 
-    machine = Intcode(program)
-
-    # while sys.stdin.readable():
-    #     line = sys.stdin.readline()
-    #     for value in line.strip().split(','):
-    #         if value:
-    #             machine.input.put(value)
-    #         else:
-    #             break
-
-    output = machine.run()
-    for c in output:
-        sys.stdout.write(chr(c))
+    cli = CLIPeripheral()
+    machine = Intcode(program, input=cli, output=cli)
+    machine.run()
 
 
 if __name__ == '__main__':
