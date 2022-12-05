@@ -1,5 +1,5 @@
 from queue import SimpleQueue
-from typing import List, Tuple, Iterable, Union
+from typing import List, Tuple, Union, Iterator, Generator
 from enum import Enum, IntEnum
 
 
@@ -25,22 +25,25 @@ class Intcode(object):
     relative_base: int = 0
     state: MachineState = MachineState.Paused
     num_cycles: int = 0
-    input: SimpleQueue
-    output: List[int]
+    input: Union[SimpleQueue, Iterator, Generator]
+    output: SimpleQueue
 
-    def __init__(self, program: List[int], input:Iterable=None, output=None):
+    def __init__(self, program: List[int], input=None, output=None):
         self.memory = list(program)
-        if callable(getattr(input, 'get', None)):
-            self.input = input
-        else:
+        if input is None:
             self.input = SimpleQueue()
-        if callable(getattr(input, '__iter__', None)):
-            for i in input:
-                self.input.put(i)
+        elif callable(getattr(input, '__next__', None)):
+            self.input = input
+        elif callable(getattr(input, '__iter__', None)):
+            self.input = iter(input)
+        else:
+            self.input = input
 
         if output is None:
-            output = []
-        self.output = output
+            self.output = SimpleQueue()
+        else:
+            self.output = output
+
         self.breakpoints = set()
         
     def __str__(self):
@@ -123,6 +126,18 @@ class Intcode(object):
                 self.step(verbose=verbose)
 
         return self.output
+
+    def output_values(self):
+        values = []
+        while self.output.qsize() > 0:
+            values.append(self.output.get())
+        if isinstance(self.output, SimpleQueue):
+            for val in values:
+                self.output.put(val)
+        return values
+
+    def output_str(self):
+        return ''.join(map(chr, self.output_values()))
 
 
 class ParameterMode(IntEnum):
@@ -246,7 +261,12 @@ class Input(Instruction):
     num_params = 1
 
     def operate(self, machine: Intcode, result: Parameter):
-        machine[result] = machine.input.get()
+        if callable(getattr(machine.input, '__next__', None)):
+            value = next(machine.input)
+        else:
+            value = machine.input.get()
+
+        machine[result] = value
 
 
 class Output(Instruction):
@@ -254,7 +274,8 @@ class Output(Instruction):
     num_params = 1
 
     def operate(self, machine: Intcode, param: Parameter):
-        machine.output.append(machine[param])
+        value = machine[param]
+        machine.output.put(value)
 
 
 class JumpIfTrue(Instruction):

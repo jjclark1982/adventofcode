@@ -53,7 +53,8 @@ class TestProgram(TestCase):
             machine.run()
         if expected_output is not None:
             with self.subTest(msg="output matches expectation"):
-                self.assertListEqual(machine.output, expected_output)
+                output = machine.output_values()
+                self.assertListEqual(output, expected_output)
         if expected_memory is not None:
             with self.subTest(msg="resulting memory matches expectation"):
                 self.assertListEqual(machine.memory, expected_memory)
