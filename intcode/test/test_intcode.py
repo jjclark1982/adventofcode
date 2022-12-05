@@ -17,7 +17,7 @@ class TestInstruction(TestCase):
         for cls in Instruction.__subclasses__():
             with self.subTest(msg=f"{cls.opcode} {cls.__name__}"):
                 op = Instruction(cls.opcode)
-                self.assertTrue(isinstance(op, cls))
+                self.assertIsInstance(op, cls)
 
     def test_instantiate_from_class(self):
         operations = Instruction.__subclasses__()
@@ -25,7 +25,7 @@ class TestInstruction(TestCase):
         for cls in Instruction.__subclasses__():
             with self.subTest(msg=f"{cls.opcode} {cls.__name__}"):
                 op = cls(cls.opcode)
-                self.assertTrue(isinstance(op, cls))
+                self.assertIsInstance(op, cls)
 
 
 class TestParameter(TestCase):

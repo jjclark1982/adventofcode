@@ -186,12 +186,12 @@ class Instruction(object):
 
     @classmethod
     def subclass_from_opcode(cls, opcode) -> type:
-        operations = {}
-        for item in cls.__subclasses__():
-            if type(item) == type and issubclass(item, cls):
-                operations[item.opcode] = item
-        if opcode in operations:
-            return operations[opcode]
+        if not hasattr(Instruction, '_operations'):
+            Instruction._operations = {}
+            for item in Instruction.__subclasses__():
+                if type(item) == type and issubclass(item, Instruction):
+                    Instruction._operations[item.opcode] = item
+        return Instruction._operations.get(opcode)
 
     def __init__(self, value: int, *param_values: Tuple[int]):
         self.value = value
