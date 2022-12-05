@@ -153,168 +153,26 @@ class Parameter(object):
         return f"{str(self.mode)}{self.value}".rjust(4, " ")
 
 
-class Operation(object):
-    """
-    An Operation is an abstract form of something the machine can do.
-    """
-    
-    opcode = None
-    num_params = 0
-
-    def __init__(self, opcode=None):
-        if opcode is not None:
-            self.opcode = opcode
-            OpClass = self.from_opcode(opcode)
-            if OpClass:
-                self.__class__ = OpClass
-
-    def __repr__(self):
-        if self.__class__ is Operation:
-            return f"{self.__class__.__name__}({self.opcode})"
-        else:
-            return f"{self.__class__.__name__}()"
-
-    def __str__(self):
-        return self.name.ljust(18)
-
-    @property
-    def name(self):
-        if self.__class__ is Operation:
-            return str(self.opcode)
-        else:
-            return self.__class__.__name__
-    
-    def operate(self, machine: Intcode, **params):
-        raise ValueError(f"Invalid instruction with opcode {self.opcode}")
-    
-    @classmethod
-    def width(cls):
-        return 1 + cls.num_params
-    
-    @classmethod
-    def from_opcode(cls, opcode) -> type:
-        operations = {}
-        for item in cls.__subclasses__():
-            if type(item) == type and issubclass(item, cls):
-                operations[item.opcode] = item
-        if opcode in operations:
-            return operations[opcode]
-
-
-class Add(Operation):
-    opcode = 1
-    num_params = 3
-
-    def operate(self, machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
-        machine[result] = machine[lhs] + machine[rhs]
-
-
-class Multiply(Operation):
-    opcode = 2
-    num_params = 3
-
-    def operate(self, machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
-        machine[result] = machine[lhs] * machine[rhs]
-
-
-class Input(Operation):
-    opcode = 3
-    num_params = 1
-
-    def operate(self, machine: Intcode, result: Parameter):
-        machine[result] = machine.input.get()
-
-
-class Output(Operation):
-    opcode = 4
-    num_params = 1
-
-    def operate(self, machine: Intcode, param: Parameter):
-        machine.output.append(machine[param])
-
-
-class JumpIfTrue(Operation):
-    opcode = 5
-    num_params = 2
-
-    def operate(self, machine: Intcode, test: Parameter, addr: Parameter):
-        if machine[test] != 0:
-            machine.pc = machine[addr]
-
-
-class JumpIfFalse(Operation):
-    opcode = 6
-    num_params = 2
-
-    def operate(self, machine: Intcode, test: Parameter, addr: Parameter):
-        if machine[test] == 0:
-            machine.pc = machine[addr]
-
-
-class LessThan(Operation):
-    opcode = 7
-    num_params = 3
-
-    def operate(self, machine, lhs: Parameter, rhs: Parameter, result: Parameter):
-        machine[result] = int(machine[lhs] < machine[rhs])
-
-
-class Equals(Operation):
-    opcode = 8
-    num_params = 3
-
-    def operate(self, machine, lhs: Parameter, rhs: Parameter, result: Parameter):
-        machine[result] = int(machine[lhs] == machine[rhs])
-
-
-class AdjustRelativeBase(Operation):
-    opcode = 9
-    num_params = 1
-
-    def operate(self, machine: Intcode, value: Parameter):
-        machine.relative_base += machine[value]
-
-
-class Halt(Operation):
-    opcode = 99
-    num_params = 0
-
-    def operate(self, machine: Intcode):
-        machine.state = MachineState.Halted
-
-
 class Instruction(object):
     """
-    An Instruction is a concrete instance of an Operation and its parameters
+    An Instruction is a concrete instance of an operation and its parameters
     """
 
     value: int
-    operation: Operation
     parameters: List[Parameter]
-    width: int = 1
+    opcode: Union[int, None] = None
+    num_params: int = 0
 
-    def __init__(self, value: int, *param_values: Tuple[int]):
-        self.value = value
-        opcode, modes = self.decode(self.value)
-        self.operation = Operation(opcode)
-        self.width = 1 + self.operation.num_params
+    @property
+    def width(self):
+        return self.num_params + 1
 
-        self.parameters = []
-        for i in range(self.operation.num_params):
-            value = param_values[i]
-            mode = modes[i]
-            self.parameters.append(Parameter(value, mode))
-
-    def __str__(self):
-        param_strs = [str(p) for p in self.parameters]
-        return ' '.join([str(self.operation)] + param_strs)
-
-    def __repr__(self):
-        args = [self.value] + [p.value for p in self.parameters]
-        return f"Instruction({', '.join(str(a) for a in args)})"
-
-    def run(self, machine: Intcode):
-        self.operation.operate(machine, *self.parameters)
+    @property
+    def name(self):
+        if self.__class__ is Instruction:
+            return str(self.value)
+        else:
+            return self.__class__.__name__
 
     @staticmethod
     def decode(instruction: int) -> Tuple[int, List[int]]:
@@ -325,6 +183,128 @@ class Instruction(object):
             (instruction // 10000) % 10
         )
         return opcode, modes
+
+    @classmethod
+    def subclass_from_opcode(cls, opcode) -> type:
+        operations = {}
+        for item in cls.__subclasses__():
+            if type(item) == type and issubclass(item, cls):
+                operations[item.opcode] = item
+        if opcode in operations:
+            return operations[opcode]
+
+    def __init__(self, value: int, *param_values: Tuple[int]):
+        self.value = value
+        self.opcode, self.modes = self.decode(value)
+
+        OpClass = self.subclass_from_opcode(self.opcode)
+        if OpClass:
+            self.__class__ = OpClass
+
+        self.parameters = []
+        for i in range(self.num_params):
+            if i >= len(param_values):
+                value = 0
+            else:
+                value = param_values[i]
+            mode = self.modes[i]
+            self.parameters.append(Parameter(value, mode))
+
+    def __str__(self):
+        parts = [self.name.ljust(18)] + [*map(str, self.parameters)]
+        return ' '.join(parts)
+
+    def __repr__(self):
+        args = [self.value] + [p.value for p in self.parameters]
+        return f"Instruction({', '.join(str(a) for a in args)})"
+
+    def run(self, machine: Intcode):
+        self.operate(machine, *self.parameters)
+
+    def operate(self, machine: Intcode, **params):
+        raise ValueError(f"Invalid instruction with opcode {self.opcode}")
+
+
+class Add(Instruction):
+    opcode = 1
+    num_params = 3
+
+    def operate(self, machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
+        machine[result] = machine[lhs] + machine[rhs]
+
+
+class Multiply(Instruction):
+    opcode = 2
+    num_params = 3
+
+    def operate(self, machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
+        machine[result] = machine[lhs] * machine[rhs]
+
+
+class Input(Instruction):
+    opcode = 3
+    num_params = 1
+
+    def operate(self, machine: Intcode, result: Parameter):
+        machine[result] = machine.input.get()
+
+
+class Output(Instruction):
+    opcode = 4
+    num_params = 1
+
+    def operate(self, machine: Intcode, param: Parameter):
+        machine.output.append(machine[param])
+
+
+class JumpIfTrue(Instruction):
+    opcode = 5
+    num_params = 2
+
+    def operate(self, machine: Intcode, test: Parameter, addr: Parameter):
+        if machine[test] != 0:
+            machine.pc = machine[addr]
+
+
+class JumpIfFalse(Instruction):
+    opcode = 6
+    num_params = 2
+
+    def operate(self, machine: Intcode, test: Parameter, addr: Parameter):
+        if machine[test] == 0:
+            machine.pc = machine[addr]
+
+
+class LessThan(Instruction):
+    opcode = 7
+    num_params = 3
+
+    def operate(self, machine, lhs: Parameter, rhs: Parameter, result: Parameter):
+        machine[result] = int(machine[lhs] < machine[rhs])
+
+
+class Equals(Instruction):
+    opcode = 8
+    num_params = 3
+
+    def operate(self, machine, lhs: Parameter, rhs: Parameter, result: Parameter):
+        machine[result] = int(machine[lhs] == machine[rhs])
+
+
+class AdjustRelativeBase(Instruction):
+    opcode = 9
+    num_params = 1
+
+    def operate(self, machine: Intcode, value: Parameter):
+        machine.relative_base += machine[value]
+
+
+class Halt(Instruction):
+    opcode = 99
+    num_params = 0
+
+    def operate(self, machine: Intcode):
+        machine.state = MachineState.Halted
 
 
 def main():

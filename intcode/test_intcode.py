@@ -1,30 +1,30 @@
 from unittest import TestCase
 
-from intcode import Intcode, Operation, ParameterMode, Parameter, Instruction
+from intcode import Intcode, ParameterMode, Parameter, Instruction
 
 
-class TestOperation(TestCase):
+class TestInstruction(TestCase):
     def test_invalid(self):
         with self.subTest(msg="should instantiate without error"):
-            op = Operation(0)
+            op = Instruction(0)
         with self.subTest("should error when trying to execute"):
             with self.assertRaises(ValueError):
                 op.operate(machine=None)
 
     def test_instantiate_from_opcode(self):
-        operations = Operation.__subclasses__()
+        operations = Instruction.__subclasses__()
         self.assertGreater(len(operations), 0)
-        for cls in Operation.__subclasses__():
+        for cls in Instruction.__subclasses__():
             with self.subTest(msg=f"{cls.opcode} {cls.__name__}"):
-                op = Operation(cls.opcode)
+                op = Instruction(cls.opcode)
                 self.assertTrue(isinstance(op, cls))
 
     def test_instantiate_from_class(self):
-        operations = Operation.__subclasses__()
+        operations = Instruction.__subclasses__()
         self.assertGreater(len(operations), 0)
-        for cls in Operation.__subclasses__():
+        for cls in Instruction.__subclasses__():
             with self.subTest(msg=f"{cls.opcode} {cls.__name__}"):
-                op = cls()
+                op = cls(cls.opcode)
                 self.assertTrue(isinstance(op, cls))
 
 
