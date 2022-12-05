@@ -1,7 +1,18 @@
 import numpy as np
 
-from .intcode import Intcode
+from intcode import Intcode
 
+"""
+An Intcode peripheral should support asynchronous input/output
+with an Intcode machine.
+
+When the CPU runs an Input instruction, it should block or error
+based on properties of the peripheral.
+
+When the CPU runs an Output instruction, it should enqueue output
+on the peripheral.
+There should be a simple interface to view all output as ints or ASCII.
+"""
 
 class PaintingRobot:
     def __init__(self):
