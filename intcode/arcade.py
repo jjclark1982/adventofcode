@@ -3,6 +3,7 @@
 from enum import IntEnum
 import numpy as np
 import curses
+import time
 
 
 class Tile(IntEnum):
@@ -50,7 +51,11 @@ class JoystickPosition(IntEnum):
 
 
 class RandomJoystick:
+    def __init__(self, delay=0.0):
+        self.delay = delay
+
     def get(self, **kwargs):
+        time.sleep(self.delay)
         return np.random.randint(-1, 2)
 
 
@@ -79,7 +84,7 @@ def run_in_tty(stdscr):
     from intcode import Intcode, MachineState
 
     if args.random:
-        joystick = RandomJoystick()
+        joystick = RandomJoystick(delay=0.025)
     else:
         joystick = TTYJoystick(stdscr)
     cabinet = ArcadeCabinet(stdscr)
