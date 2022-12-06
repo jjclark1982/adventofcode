@@ -31,10 +31,12 @@ class ArcadeCabinet:
             self.y = value
         elif self.x == -1:
             self.score = value
+            if self.stdscr:
+                self.stdscr.addstr(23, 0, f"Score: {value}")
         else:
             self.screen[self.y, self.x] = value
             if self.stdscr:
-                tile_str = ["  ", "##", "XX", "OO", "••"][value]
+                tile_str = ["  ", "##", "[]", "==", "()"][value]
                 self.stdscr.addstr(self.y, self.x*2, tile_str)
                 self.stdscr.refresh()
         self.n_commands += 1
