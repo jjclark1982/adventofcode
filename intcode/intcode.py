@@ -1,5 +1,5 @@
 from queue import SimpleQueue
-from typing import List, Tuple, Union, Iterator, Generator
+from typing import List, Tuple, Union, Iterator, Generator, Optional
 from enum import Enum, IntEnum
 
 
@@ -10,7 +10,7 @@ class MachineState(Enum):
     Halted = 4
 
 
-class Intcode(object):
+class Intcode:
     """
     An Intcode machine consists of:
     - memory, initialized with a program
@@ -149,7 +149,7 @@ class ParameterMode(IntEnum):
         return ["*", " ", "+"][self.value]
 
 
-class Parameter(object):
+class Parameter:
     """
     A Parameter is a combination of referencing mode and value.
     It is used as the argument to Intcode indexing.
@@ -168,26 +168,17 @@ class Parameter(object):
         return f"{str(self.mode)}{self.value}".rjust(4, " ")
 
 
-class Instruction(object):
+class Instruction:
     """
     An Instruction is a concrete instance of an operation and its parameters
     """
 
     value: int
     parameters: List[Parameter]
-    opcode: Union[int, None] = None
-    num_params: int = 0
 
     @property
     def width(self):
-        return self.num_params + 1
-
-    @property
-    def name(self):
-        if self.__class__ is Instruction:
-            return str(self.value)
-        else:
-            return self.__class__.__name__
+        return self.operator.num_params + 1
 
     @staticmethod
     def decode(instruction: int) -> Tuple[int, List[int]]:
@@ -199,25 +190,12 @@ class Instruction(object):
         )
         return opcode, modes
 
-    @classmethod
-    def subclass_from_opcode(cls, opcode) -> type:
-        if not hasattr(Instruction, '_operations'):
-            Instruction._operations = {}
-            for item in Instruction.__subclasses__():
-                if type(item) == type and issubclass(item, Instruction):
-                    Instruction._operations[item.opcode] = item
-        return Instruction._operations.get(opcode)
-
     def __init__(self, value: int, *param_values: Tuple[int]):
         self.value = value
-        self.opcode, self.modes = self.decode(value)
-
-        OpClass = self.subclass_from_opcode(self.opcode)
-        if OpClass:
-            self.__class__ = OpClass
-
+        opcode, self.modes = self.decode(value)
+        self.operator = Operator(opcode)
         self.parameters = []
-        for i in range(self.num_params):
+        for i in range(self.operator.num_params):
             if i >= len(param_values):
                 value = 0
             else:
@@ -226,7 +204,7 @@ class Instruction(object):
             self.parameters.append(Parameter(value, mode))
 
     def __str__(self):
-        parts = [self.name.ljust(18)] + [*map(str, self.parameters)]
+        parts = [self.operator.name.ljust(18)] + [*map(str, self.parameters)]
         return ' '.join(parts)
 
     def __repr__(self):
@@ -234,13 +212,41 @@ class Instruction(object):
         return f"Instruction({', '.join(str(a) for a in args)})"
 
     def run(self, machine: Intcode):
-        self.operate(machine, *self.parameters)
+        self.operator.operate(machine, *self.parameters)
+
+
+class Operator:
+    opcode: Optional[int] = None
+    num_params: int = 0
+
+    def __init__(self, opcode=None):
+        if opcode is not None:
+            self.opcode = opcode
+            OpClass = self.subclass_from_opcode(self.opcode)
+            if OpClass:
+                self.__class__ = OpClass
+
+    @staticmethod
+    def subclass_from_opcode(opcode) -> type:
+        if not hasattr(Operator, '_operations'):
+            Operator._operations = {}
+            for item in Operator.__subclasses__():
+                if type(item) == type and issubclass(item, Operator):
+                    Operator._operations[item.opcode] = item
+        return Operator._operations.get(opcode)
+
+    @property
+    def name(self):
+        if self.__class__ is Instruction:
+            return str(self.value)
+        else:
+            return self.__class__.__name__
 
     def operate(self, machine: Intcode, *params):
         raise ValueError(f"Invalid instruction with opcode {self.opcode}")
 
 
-class Add(Instruction):
+class Add(Operator):
     opcode = 1
     num_params = 3
 
@@ -248,7 +254,7 @@ class Add(Instruction):
         machine[result] = machine[lhs] + machine[rhs]
 
 
-class Multiply(Instruction):
+class Multiply(Operator):
     opcode = 2
     num_params = 3
 
@@ -256,7 +262,7 @@ class Multiply(Instruction):
         machine[result] = machine[lhs] * machine[rhs]
 
 
-class Input(Instruction):
+class Input(Operator):
     opcode = 3
     num_params = 1
 
@@ -269,7 +275,7 @@ class Input(Instruction):
         machine[result] = value
 
 
-class Output(Instruction):
+class Output(Operator):
     opcode = 4
     num_params = 1
 
@@ -278,7 +284,7 @@ class Output(Instruction):
         machine.output.put(value)
 
 
-class JumpIfTrue(Instruction):
+class JumpIfTrue(Operator):
     opcode = 5
     num_params = 2
 
@@ -287,7 +293,7 @@ class JumpIfTrue(Instruction):
             machine.pc = machine[addr]
 
 
-class JumpIfFalse(Instruction):
+class JumpIfFalse(Operator):
     opcode = 6
     num_params = 2
 
@@ -296,7 +302,7 @@ class JumpIfFalse(Instruction):
             machine.pc = machine[addr]
 
 
-class LessThan(Instruction):
+class LessThan(Operator):
     opcode = 7
     num_params = 3
 
@@ -304,7 +310,7 @@ class LessThan(Instruction):
         machine[result] = int(machine[lhs] < machine[rhs])
 
 
-class Equals(Instruction):
+class Equals(Operator):
     opcode = 8
     num_params = 3
 
@@ -312,7 +318,7 @@ class Equals(Instruction):
         machine[result] = int(machine[lhs] == machine[rhs])
 
 
-class AdjustRelativeBase(Instruction):
+class AdjustRelativeBase(Operator):
     opcode = 9
     num_params = 1
 
@@ -320,7 +326,7 @@ class AdjustRelativeBase(Instruction):
         machine.relative_base += machine[value]
 
 
-class Halt(Instruction):
+class Halt(Operator):
     opcode = 99
     num_params = 0
 
