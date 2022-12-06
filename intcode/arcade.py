@@ -3,6 +3,7 @@
 from enum import IntEnum
 import numpy as np
 import curses
+import curses.ascii
 import time
 
 
@@ -65,6 +66,8 @@ class TTYJoystick:
 
     def get(self):
         key = self.stdscr.getch()
+        if key in [curses.KEY_EXIT, curses.KEY_BACKSPACE, curses.ascii.BS, curses.ascii.DEL, curses.ascii.ESC]:
+            raise KeyboardInterrupt()
         if key in [curses.KEY_LEFT, ord("A"), ord("a"), ord("H"), ord("h")]:
             return JoystickPosition.Left
         elif key in [curses.KEY_RIGHT, ord("D"), ord("d"), ord("L"), ord("l")]:
@@ -89,10 +92,14 @@ def run_in_tty(stdscr):
         joystick = TTYJoystick(stdscr)
     cabinet = ArcadeCabinet(stdscr)
     cpu = Intcode(program=program, input=joystick, output=cabinet)
-    cpu.run()
+    try:
+        cpu.run()
+        # await any key to quit
+        stdscr.getch()
 
-    # await any key to quit
-    stdscr.getch()
+    except KeyboardInterrupt:
+        # exit immediately
+        pass
 
 
 def main():
