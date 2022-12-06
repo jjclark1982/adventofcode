@@ -53,7 +53,7 @@ class Intcode(object):
         return '\n'.join(lines)
     
     def __repr__(self):
-        return f"<Intcode pc:{self.pc}/{len(self.memory)} in:{self.input.qsize()} out:{self.output}>"
+        return f"<Intcode pc:{self.pc}/{len(self.memory)} cycles:{self.num_cycles} state:{self.state.name}>"
     
     def __getitem__(self, key: Union[int, slice, "Parameter"]) -> int:
         # Handle loading a slice of memory

@@ -13,7 +13,7 @@ import html
 html_formatter = get_ipython().display_formatter.formatters['text/html']
 
 def int_array_to_image(a, fmt='png'):
-    a = 240 - (a/a.max() * 224).astype(np.uint8)
+    a = 240 - (a/(a.max() or 1) * 224).astype(np.uint8)
     f = BytesIO()
     PIL.Image.fromarray(a).save(f, fmt)
     return IPython.display.Image(data=f.getvalue())
