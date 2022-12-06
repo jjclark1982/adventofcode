@@ -27,7 +27,7 @@ def quad_bitmap(a):
 
 def ndarray_to_html(a):
     if len(a.shape) == 2 and a.min() >= 0:
-        while a.size < 1024:
+        while a.size < 4096:
             a = quad_bitmap(a)
 
         for bundle in int_array_to_image(a)._repr_mimebundle_():
