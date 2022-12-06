@@ -15,10 +15,10 @@ There should be a simple interface to view all output as ints or ASCII.
 """
 
 translations = {
-    'W': np.array([ 0,-1]),
-    'E': np.array([ 0, 1]),
-    'S': np.array([ 1, 0]),
     'N': np.array([-1, 0]),
+    'S': np.array([ 1, 0]),
+    'E': np.array([ 0, 1]),
+    'W': np.array([ 0,-1]),
 }
 rotations = {
     'R': np.matrix([[0, 1], [-1, 0]]),
