@@ -1,18 +1,20 @@
 # adventofcode
-Advent of Code solutions
 
-2020 items are mostly written in Python
+My solutions to [Advent of Code](https://adventofcode.com/) puzzles.
 
-### Installation
+### JavaScript Instructions
+
+Install [Node.js](https://nodejs.org/).
+
+### Python Instructions
 
 ```bash
 conda create -n advent
 conda activate advent
 pip install -r requirements.txt
-```
-
-### Usage
-
-```bash
 jupyter-lab
 ```
+
+### Elixir Instructions
+
+Install [Livebook](https://livebook.dev/)
