@@ -125,7 +125,7 @@ class Intcode:
             else:
                 self.step(verbose=verbose)
 
-        return self.output
+        return self
 
     def output_values(self):
         values = []
@@ -237,8 +237,8 @@ class Operator:
 
     @property
     def name(self):
-        if self.__class__ is Instruction:
-            return str(self.value)
+        if self.__class__ is Operator:
+            return str(self.opcode)
         else:
             return self.__class__.__name__
 
