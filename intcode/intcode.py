@@ -1,6 +1,7 @@
 from queue import SimpleQueue
 from typing import List, Tuple, Union, Iterator, Generator, Optional
 from enum import Enum, IntEnum
+from threading import Thread
 
 
 class MachineState(Enum):
@@ -27,6 +28,7 @@ class Intcode:
     num_cycles: int = 0
     input: Union[SimpleQueue, Iterator, Generator]
     output: SimpleQueue
+    _thread: Thread
 
     def __init__(self, program: List[int], input=None, output=None):
         self.memory = list(program)
@@ -126,6 +128,14 @@ class Intcode:
                 self.step(verbose=verbose)
 
         return self
+
+    def run_in_thread(self):
+        self._thread = Thread(target=self.run)
+        self._thread.start()
+        return self._thread
+
+    def join(self):
+        self._thread.join()
 
     def output_values(self):
         values = []
