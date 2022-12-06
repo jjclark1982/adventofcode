@@ -129,7 +129,7 @@ class Intcode(object):
 
     def output_values(self):
         values = []
-        while self.output.qsize() > 0:
+        while not self.output.empty():
             values.append(self.output.get())
         if isinstance(self.output, SimpleQueue):
             for val in values:
