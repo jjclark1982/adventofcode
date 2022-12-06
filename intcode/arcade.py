@@ -38,6 +38,7 @@ class ArcadeCabinet:
             if self.stdscr:
                 tile_str = ["  ", "##", "[]", "==", "()"][value]
                 self.stdscr.addstr(self.y, self.x*2, tile_str)
+                self.stdscr.move(0,0)
                 self.stdscr.refresh()
         self.n_commands += 1
 
@@ -59,9 +60,9 @@ class TTYJoystick:
 
     def get(self):
         key = self.stdscr.getch()
-        if key == curses.KEY_LEFT:
+        if key in [curses.KEY_LEFT, ord("A"), ord("a"), ord("H"), ord("h")]:
             return JoystickPosition.Left
-        elif key == curses.KEY_RIGHT:
+        elif key in [curses.KEY_RIGHT, ord("D"), ord("d"), ord("L"), ord("l")]:
             return JoystickPosition.Right
         else:
             return JoystickPosition.Neutral
@@ -71,13 +72,16 @@ def run_in_tty(stdscr):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('program_file', type=argparse.FileType('r'))
+    parser.add_argument('--random', action="store_true")
     args = parser.parse_args()
     program = [*map(int, args.program_file.read().strip().split(','))]
 
     from intcode import Intcode, MachineState
 
-    joystick = TTYJoystick(stdscr)
-    joystick = RandomJoystick()  # comment out for interactive play
+    if args.random:
+        joystick = RandomJoystick()
+    else:
+        joystick = TTYJoystick(stdscr)
     cabinet = ArcadeCabinet(stdscr)
     cpu = Intcode(program=program, input=joystick, output=cabinet)
     cpu.run()
