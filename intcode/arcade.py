@@ -5,8 +5,7 @@ import numpy as np
 import curses
 import curses.ascii
 import time
-from queue import Queue, SimpleQueue
-from threading import Thread
+from queue import SimpleQueue
 import sys
 
 
@@ -63,50 +62,40 @@ class RandomJoystick:
         return np.random.randint(-1, 2)
 
 
-class DefaultQueue:
-    def __init__(self, queue: Queue, default=None, delay=0.0):
-        self.queue = queue
+class DefaultQueue(SimpleQueue):
+    def __init__(self, default=None, delay=0.0):
+        super().__init__()
         self.default = default
         self.delay = delay
 
-    def get(self):
-        if self.queue.empty():
+    def get(self, **kwargs):
+        if self.empty():
             time.sleep(self.delay)
             return self.default
         else:
-            return self.queue.get()
+            return super().get(**kwargs)
 
 
 class TTYJoystick:
-    def __init__(self, stdscr):
+    def __init__(self, stdscr, delay=50):
+        stdscr.timeout(delay)
         self.stdscr = stdscr
-        self.ch_queue = SimpleQueue()
-        self.thread = Thread(target=self.getch_loop, args=(self.stdscr, self.ch_queue))
-        self.thread.start()
-        self.key_queue = DefaultQueue(self.ch_queue, default=JoystickPosition.Neutral, delay=0.05)
 
     def get(self):
-        key = self.key_queue.get()
-        return self.parse_keyboard_input(key)
+        key = self.stdscr.getch()
+        value = self.parse_keyboard_input(key)
+        return value
 
     @staticmethod
     def parse_keyboard_input(key):
         if key in [curses.KEY_EXIT, curses.KEY_BACKSPACE, curses.ascii.BS, curses.ascii.DEL, curses.ascii.ESC]:
-            raise KeyboardInterrupt()
+            return None
         if key in [curses.KEY_LEFT, ord("A"), ord("a"), ord("H"), ord("h")]:
             return JoystickPosition.Left
         elif key in [curses.KEY_RIGHT, ord("D"), ord("d"), ord("L"), ord("l")]:
             return JoystickPosition.Right
         else:
             return JoystickPosition.Neutral
-
-    @staticmethod
-    def getch_loop(stdscr, queue):
-        try:
-            while True:
-                queue.put(stdscr.getch())
-        except (KeyboardInterrupt, SystemExit):
-            return
 
 
 def run_in_tty(stdscr: curses.window):
