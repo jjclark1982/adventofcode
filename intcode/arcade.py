@@ -5,8 +5,8 @@ import numpy as np
 import curses
 import curses.ascii
 import time
-from queue import Queue, SimpleQueue
-from threading import Thread
+from queue import SimpleQueue
+import sys
 
 
 class Tile(IntEnum):
@@ -62,14 +62,34 @@ class RandomJoystick:
         return np.random.randint(-1, 2)
 
 
+class DefaultQueue(SimpleQueue):
+    def __init__(self, default=None, delay=0.0):
+        super().__init__()
+        self.default = default
+        self.delay = delay
+
+    def get(self, **kwargs):
+        if self.empty():
+            time.sleep(self.delay)
+            return self.default
+        else:
+            return super().get(**kwargs)
+
+
 class TTYJoystick:
-    def __init__(self, stdscr):
+    def __init__(self, stdscr, delay=50):
+        stdscr.timeout(delay)
         self.stdscr = stdscr
 
     def get(self):
         key = self.stdscr.getch()
+        value = self.parse_keyboard_input(key)
+        return value
+
+    @staticmethod
+    def parse_keyboard_input(key):
         if key in [curses.KEY_EXIT, curses.KEY_BACKSPACE, curses.ascii.BS, curses.ascii.DEL, curses.ascii.ESC]:
-            raise KeyboardInterrupt()
+            return None
         if key in [curses.KEY_LEFT, ord("A"), ord("a"), ord("H"), ord("h")]:
             return JoystickPosition.Left
         elif key in [curses.KEY_RIGHT, ord("D"), ord("d"), ord("L"), ord("l")]:
@@ -78,34 +98,7 @@ class TTYJoystick:
             return JoystickPosition.Neutral
 
 
-class DefaultQueue:
-    def __init__(self, queue: Queue, default=None):
-        self.queue = queue
-        self.default = default
-
-    def get(self):
-        if self.queue.empty():
-            time.sleep(0.06)
-            return self.default
-        else:
-            return self.queue.get()
-
-
-def pipe(queue1, queue2):
-    while True:
-        queue2.put(queue1.get())
-
-
-def timed_joystick(stdscr):
-    joystick = TTYJoystick(stdscr)
-    ch_queue = SimpleQueue()
-    thread = Thread(target=pipe, args=(joystick, ch_queue))
-    thread.start()
-    queue = DefaultQueue(ch_queue, default=JoystickPosition.Neutral)
-    return queue
-
-
-def run_in_tty(stdscr):
+def run_in_tty(stdscr: curses.window):
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('program_file', type=argparse.FileType('r'))
@@ -118,18 +111,21 @@ def run_in_tty(stdscr):
     if args.random:
         joystick = RandomJoystick(delay=0.025)
     else:
-        # joystick = TTYJoystick(stdscr)
-        joystick = timed_joystick(stdscr)
+        joystick = TTYJoystick(stdscr)
     cabinet = ArcadeCabinet(stdscr)
     cpu = Intcode(program=program, input=joystick, output=cabinet)
     try:
         cpu.run()
         # await any key to quit
-        stdscr.getch()
+        # stdscr.getch()
+        stdscr.clear()
 
     except KeyboardInterrupt:
         # exit immediately
         pass
+
+    finally:
+        sys.exit()
 
 
 def main():
