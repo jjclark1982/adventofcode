@@ -5,6 +5,8 @@ import numpy as np
 import curses
 import curses.ascii
 import time
+from queue import Queue, SimpleQueue
+from threading import Thread
 
 
 class Tile(IntEnum):
@@ -40,7 +42,7 @@ class ArcadeCabinet:
             if self.stdscr:
                 tile_str = ["  ", "##", "[]", "==", "()"][value]
                 self.stdscr.addstr(self.y, self.x*2, tile_str)
-                self.stdscr.move(0,0)
+                self.stdscr.move(0, 0)
                 self.stdscr.refresh()
         self.n_commands += 1
 
@@ -76,6 +78,33 @@ class TTYJoystick:
             return JoystickPosition.Neutral
 
 
+class DefaultQueue:
+    def __init__(self, queue: Queue, default=None):
+        self.queue = queue
+        self.default = default
+
+    def get(self):
+        if self.queue.empty():
+            time.sleep(0.06)
+            return self.default
+        else:
+            return self.queue.get()
+
+
+def pipe(queue1, queue2):
+    while True:
+        queue2.put(queue1.get())
+
+
+def timed_joystick(stdscr):
+    joystick = TTYJoystick(stdscr)
+    ch_queue = SimpleQueue()
+    thread = Thread(target=pipe, args=(joystick, ch_queue))
+    thread.start()
+    queue = DefaultQueue(ch_queue, default=JoystickPosition.Neutral)
+    return queue
+
+
 def run_in_tty(stdscr):
     import argparse
     parser = argparse.ArgumentParser()
@@ -89,7 +118,8 @@ def run_in_tty(stdscr):
     if args.random:
         joystick = RandomJoystick(delay=0.025)
     else:
-        joystick = TTYJoystick(stdscr)
+        # joystick = TTYJoystick(stdscr)
+        joystick = timed_joystick(stdscr)
     cabinet = ArcadeCabinet(stdscr)
     cpu = Intcode(program=program, input=joystick, output=cabinet)
     try:
