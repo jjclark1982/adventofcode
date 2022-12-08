@@ -214,7 +214,7 @@ class Instruction:
             self.parameters.append(Parameter(value, mode))
 
     def __str__(self):
-        parts = [self.operator.name.ljust(18)] + [*map(str, self.parameters)]
+        parts = [self.operator.name().ljust(18)] + [*map(str, self.parameters)]
         return ' '.join(parts)
 
     def __repr__(self):
@@ -228,39 +228,50 @@ class Instruction:
 class Operator:
     opcode: Optional[int] = None
     num_params: int = 0
+    _by_opcode = {}
 
-    def __init__(self, opcode=None):
-        if opcode is not None:
-            self.opcode = opcode
-            OpClass = self.subclass_from_opcode(self.opcode)
-            if OpClass:
-                self.__class__ = OpClass
+    def __new__(cls, opcode: int = None):
+        """
+        Operator(opcode) returns an object or class with an operate() method.
+        """
+        if cls is Operator:
+            OpClass = Operator.from_opcode(opcode)
+            if OpClass.opcode is not None:
+                return OpClass
+        return super().__new__(cls)
+
+    def __init_subclass__(cls, **kwargs):
+        Operator._by_opcode[cls.opcode] = cls
 
     @staticmethod
-    def subclass_from_opcode(opcode) -> type:
-        if not hasattr(Operator, '_operations'):
-            Operator._operations = {}
-            for item in Operator.__subclasses__():
-                if type(item) == type and issubclass(item, Operator):
-                    Operator._operations[item.opcode] = item
-        return Operator._operations.get(opcode)
+    def from_opcode(opcode) -> type:
+        return Operator._by_opcode.get(opcode, NoOp)
 
-    @property
-    def name(self):
-        if self.__class__ is Operator:
-            return str(self.opcode)
-        else:
-            return self.__class__.__name__
+    @classmethod
+    def name(cls):
+        return cls.__name__
 
-    def operate(self, machine: Intcode, *params):
+    def operate(self, machine: Intcode, *params: Tuple[Parameter, ...]):
         raise ValueError(f"Invalid instruction with opcode {self.opcode}")
+
+
+class NoOp(Operator):
+    opcode = None
+    num_params = 0
+
+    def name(self=None):
+        return str((self or NoOp).opcode)
+
+    def __init__(self, opcode=None):
+        self.opcode = opcode
 
 
 class Add(Operator):
     opcode = 1
     num_params = 3
 
-    def operate(self, machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
+    @staticmethod
+    def operate(machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
         machine[result] = machine[lhs] + machine[rhs]
 
 
@@ -268,7 +279,8 @@ class Multiply(Operator):
     opcode = 2
     num_params = 3
 
-    def operate(self, machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
+    @staticmethod
+    def operate(machine: Intcode, lhs: Parameter, rhs: Parameter, result: Parameter):
         machine[result] = machine[lhs] * machine[rhs]
 
 
@@ -276,7 +288,8 @@ class Input(Operator):
     opcode = 3
     num_params = 1
 
-    def operate(self, machine: Intcode, result: Parameter):
+    @staticmethod
+    def operate(machine: Intcode, result: Parameter):
         if callable(getattr(machine.input, '__next__', None)):
             value = next(machine.input)
         else:
@@ -289,7 +302,8 @@ class Output(Operator):
     opcode = 4
     num_params = 1
 
-    def operate(self, machine: Intcode, param: Parameter):
+    @staticmethod
+    def operate(machine: Intcode, param: Parameter):
         value = machine[param]
         machine.output.put(value)
 
@@ -298,7 +312,8 @@ class JumpIfTrue(Operator):
     opcode = 5
     num_params = 2
 
-    def operate(self, machine: Intcode, test: Parameter, addr: Parameter):
+    @staticmethod
+    def operate(machine: Intcode, test: Parameter, addr: Parameter):
         if machine[test] != 0:
             machine.pc = machine[addr]
 
@@ -307,7 +322,8 @@ class JumpIfFalse(Operator):
     opcode = 6
     num_params = 2
 
-    def operate(self, machine: Intcode, test: Parameter, addr: Parameter):
+    @staticmethod
+    def operate(machine: Intcode, test: Parameter, addr: Parameter):
         if machine[test] == 0:
             machine.pc = machine[addr]
 
@@ -316,7 +332,8 @@ class LessThan(Operator):
     opcode = 7
     num_params = 3
 
-    def operate(self, machine, lhs: Parameter, rhs: Parameter, result: Parameter):
+    @staticmethod
+    def operate(machine, lhs: Parameter, rhs: Parameter, result: Parameter):
         machine[result] = int(machine[lhs] < machine[rhs])
 
 
@@ -324,7 +341,8 @@ class Equals(Operator):
     opcode = 8
     num_params = 3
 
-    def operate(self, machine, lhs: Parameter, rhs: Parameter, result: Parameter):
+    @staticmethod
+    def operate(machine, lhs: Parameter, rhs: Parameter, result: Parameter):
         machine[result] = int(machine[lhs] == machine[rhs])
 
 
@@ -332,7 +350,8 @@ class AdjustRelativeBase(Operator):
     opcode = 9
     num_params = 1
 
-    def operate(self, machine: Intcode, value: Parameter):
+    @staticmethod
+    def operate(machine: Intcode, value: Parameter):
         machine.relative_base += machine[value]
 
 
@@ -340,7 +359,8 @@ class Halt(Operator):
     opcode = 99
     num_params = 0
 
-    def operate(self, machine: Intcode):
+    @staticmethod
+    def operate(machine: Intcode):
         machine.state = MachineState.Halted
 
 

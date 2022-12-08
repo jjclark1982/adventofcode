@@ -11,13 +11,14 @@ class TestOperator(TestCase):
             with self.assertRaises(ValueError):
                 op.operate(machine=None)
 
-    def test_instantiate_from_opcode(self):
+    def test_load_from_opcode(self):
         operations = Operator.__subclasses__()
         self.assertGreater(len(operations), 0)
         for cls in Operator.__subclasses__():
             with self.subTest(msg=f"{cls.opcode} {cls.__name__}"):
                 op = Operator(cls.opcode)
-                self.assertIsInstance(op, cls)
+                self.assertIsNotNone(op.name())
+                self.assertTrue(callable(op.operate))
 
     def test_instantiate_from_class(self):
         operations = Operator.__subclasses__()
