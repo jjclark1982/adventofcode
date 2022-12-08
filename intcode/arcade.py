@@ -124,13 +124,13 @@ def run_in_tty(stdscr: curses.window):
         # exit immediately
         pass
 
-    finally:
-        sys.exit()
+    return cabinet.score
 
 
 def main():
     from curses import wrapper
-    wrapper(run_in_tty)
+    score = wrapper(run_in_tty)
+    print(f"Score: {score}")
 
 
 if __name__ == "__main__":
