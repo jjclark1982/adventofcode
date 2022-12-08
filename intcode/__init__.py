@@ -1,1 +1,1 @@
-from .intcode import Intcode, Parameter, ParameterMode, Instruction
+from .intcode import Intcode, Parameter, ParameterMode, Instruction, MachineState

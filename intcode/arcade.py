@@ -6,7 +6,8 @@ import curses
 import curses.ascii
 import time
 from queue import SimpleQueue
-import sys
+import signal
+import random
 
 
 class Tile(IntEnum):
@@ -17,16 +18,26 @@ class Tile(IntEnum):
     Ball = 4
 
 
+TILE_SYMBOLS = {
+    Tile.Empty: "  ",
+    Tile.Wall: "##",
+    Tile.Block: "[]",
+    Tile.Paddle: "==",
+    Tile.Ball: "()"
+}
+
+
 class ArcadeCabinet:
     screen: np.ndarray
+    score: int = 0
     n_commands: int = 0
     x: int = 0
     y: int = 0
-    score: int = 0
 
-    def __init__(self, stdscr=None):
+    def __init__(self, stdscr: curses.window = None):
         self.screen = np.zeros((24, 40), dtype=int)
         self.stdscr = stdscr
+        signal.signal(signal.SIGWINCH, self.resize_handler)
 
     def put(self, value):
         if self.n_commands % 3 == 0:
@@ -36,15 +47,45 @@ class ArcadeCabinet:
         elif self.x == -1:
             self.score = value
             if self.stdscr:
-                self.stdscr.addstr(23, 0, f"Score: {value}")
+                # self.stdscr.addstr(23, 0, f"Score: {value}")
+                print(f"\033]0;Intcode Arcade – Score: {value}\a")
         else:
             self.screen[self.y, self.x] = value
-            if self.stdscr:
-                tile_str = ["  ", "##", "[]", "==", "()"][value]
-                self.stdscr.addstr(self.y, self.x*2, tile_str)
-                self.stdscr.move(0, 0)
-                self.stdscr.refresh()
+            self.print_tile(self.y, self.x)
+
         self.n_commands += 1
+
+    def resize_handler(self, signo, frame=None):
+        if self.stdscr:
+            curses.endwin()
+            self.stdscr = curses.initscr()
+            # the following should be signal-safe as it does not call stdscr.refresh()
+            self.repaint_screen()
+
+    def repaint_screen(self):
+        if self.stdscr:
+            for y in range(self.screen.shape[0]):
+                s = "".join(TILE_SYMBOLS[tile] for tile in self.screen[y])
+                try:
+                    self.stdscr.addstr(y, 0, s)
+                except curses.error:
+                    # tried to write too long a line. perhaps multiple winch signals overlapped.
+                    pass
+
+    def print_tile(self, y, x):
+        tile_str = TILE_SYMBOLS[self.screen[y, x]]
+        if self.stdscr:
+            max_y, max_x = self.stdscr.getmaxyx()
+            if self.y < max_y and self.x * 2 < max_x-1:
+                self.stdscr.addstr(self.y, self.x * 2, tile_str)
+                self.stdscr.move(0, 0)
+            self.stdscr.refresh()
+
+    def __str__(self):
+        return "\n".join([
+            "".join(TILE_SYMBOLS[tile] for tile in row)
+            for row in self.screen
+        ])
 
 
 class JoystickPosition(IntEnum):
@@ -59,7 +100,7 @@ class RandomJoystick:
 
     def get(self, **kwargs):
         time.sleep(self.delay)
-        return np.random.randint(-1, 2)
+        return random.choice([*JoystickPosition])
 
 
 class DefaultQueue(SimpleQueue):
@@ -106,7 +147,7 @@ def run_in_tty(stdscr: curses.window):
     args = parser.parse_args()
     program = [*map(int, args.program_file.read().strip().split(','))]
 
-    from intcode import Intcode, MachineState
+    from intcode import Intcode
 
     if args.random:
         joystick = RandomJoystick(delay=0.025)
@@ -118,7 +159,7 @@ def run_in_tty(stdscr: curses.window):
         cpu.run()
         # await any key to quit
         # stdscr.getch()
-        stdscr.clear()
+        # stdscr.clear()
 
     except KeyboardInterrupt:
         # exit immediately
