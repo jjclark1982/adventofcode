@@ -22,16 +22,18 @@ class Intcode:
     Usage: Intcode(program).run(input=[...]).output
     """
     memory: List[int]
-    pc: int = 0
     relative_base: int = 0
+    pc: int = 0
     state: MachineState = MachineState.Paused
     num_cycles: int = 0
     input: Union[SimpleQueue, Iterator, Generator]
     output: SimpleQueue
+    breakpoints: set
     _thread: Thread
 
-    def __init__(self, program: List[int], input=None, output=None):
+    def __init__(self, program: List[int], input=None, output=None, breakpoints=None, **kwargs):
         self.memory = list(program)
+
         if input is None:
             self.input = SimpleQueue()
         elif callable(getattr(input, '__next__', None)):
@@ -42,11 +44,14 @@ class Intcode:
             self.input = input
 
         if output is None:
-            self.output = SimpleQueue()
-        else:
-            self.output = output
+            output = SimpleQueue()
+        self.output = output
 
-        self.breakpoints = set()
+        if breakpoints is None:
+            breakpoints = set()
+        self.breakpoints = breakpoints
+
+        self.__dict__.update(kwargs)
         
     def __str__(self):
         lines = [
@@ -112,8 +117,8 @@ class Intcode:
         self.pc += instruction.width
         instruction.run(self)
         self.num_cycles += 1
-    
-    def run(self, pc=None, verbose=False):
+
+    def run(self, pc=None, verbose=False, pause_on_output=False):
         if pc is not None:
             self.pc = pc
         self.state = MachineState.Running
@@ -122,6 +127,9 @@ class Intcode:
                 self.state = MachineState.Halted
 
             elif self.pc in self.breakpoints:
+                self.state = MachineState.Paused
+
+            elif pause_on_output and not self.output.empty():
                 self.state = MachineState.Paused
 
             else:
@@ -148,6 +156,9 @@ class Intcode:
 
     def output_str(self):
         return ''.join(map(chr, self.output_values()))
+
+    def fork(self, **kwargs):
+        return Intcode(program=self.memory.copy(), relative_base=self.relative_base, pc=self.pc, **kwargs)
 
 
 class ParameterMode(IntEnum):
@@ -306,6 +317,8 @@ class Output(Operator):
     def operate(machine: Intcode, param: Parameter):
         value = machine[param]
         machine.output.put(value)
+        if machine.pause_on_output:
+            machine.state = MachineState.Paused
 
 
 class JumpIfTrue(Operator):
