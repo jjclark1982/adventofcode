@@ -317,8 +317,6 @@ class Output(Operator):
     def operate(machine: Intcode, param: Parameter):
         value = machine[param]
         machine.output.put(value)
-        if machine.pause_on_output:
-            machine.state = MachineState.Paused
 
 
 class JumpIfTrue(Operator):
