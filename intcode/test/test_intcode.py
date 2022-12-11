@@ -1,6 +1,7 @@
 from unittest import TestCase
 
-from intcode import Intcode, ParameterMode, Parameter, Instruction, Operator
+from intcode import Intcode, ParameterMode, Parameter, Instruction, Operator, Output, MachineState
+from queue import Queue
 
 
 class TestOperator(TestCase):
@@ -37,7 +38,7 @@ class TestInstruction(TestCase):
 
 class TestParameter(TestCase):
     def test_position_mode(self):
-        machine = Intcode([1,2,3])
+        machine = Intcode([1, 2, 3])
         param = Parameter(1, ParameterMode.Position)
         self.assertEqual(machine[param], 2)
 
@@ -131,3 +132,35 @@ class TestProgram(TestCase):
             program=[104,1125899906842624,99],
             expected_output=[1125899906842624]
         )
+
+
+class TestPause(TestCase):
+    def test_pause_on_blocked_input(self):
+        cpu = Intcode([3, 4, 99], io_timeout=0.01)
+        with self.subTest(msg="pause"):
+            cpu.run()
+            self.assertEqual(cpu.state, MachineState.Paused)
+        with self.subTest(msg="resume"):
+            cpu.input.put(1)
+            cpu.run()
+            self.assertEqual(cpu.state, MachineState.Halted)
+
+    def test_pause_on_blocked_output(self):
+        cpu = Intcode([104, 1, 104, 1, 99], output=Queue(maxsize=1), io_timeout=0.01)
+        with self.subTest(msg="pause"):
+            cpu.run()
+            self.assertEqual(cpu.state, MachineState.Paused)
+        with self.subTest(msg="resume"):
+            cpu.output.get()
+            cpu.run()
+            self.assertEqual(cpu.state, MachineState.Halted)
+
+    def test_pause_on_ready_output(self):
+        cpu = Intcode([104, 1, 99], io_timeout=0.01)
+        with self.subTest(msg="pause"):
+            cpu.run(pause_on_output=True)
+            self.assertEqual(cpu.state, MachineState.Paused)
+        with self.subTest(msg="resume"):
+            cpu.output.get()
+            cpu.run()
+            self.assertEqual(cpu.state, MachineState.Halted)

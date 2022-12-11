@@ -1,4 +1,4 @@
-from queue import SimpleQueue
+from queue import SimpleQueue, Full, Empty
 from typing import List, Tuple, Union, Iterator, Generator, Optional
 from enum import Enum, IntEnum
 from threading import Thread
@@ -30,6 +30,7 @@ class Intcode:
     output: SimpleQueue
     breakpoints: set
     _thread: Thread
+    io_timeout: float = 1.0
 
     def __init__(self, program: List[int], input=None, output=None, breakpoints=None, **kwargs):
         self.memory = list(program)
@@ -304,7 +305,13 @@ class Input(Operator):
         if callable(getattr(machine.input, '__next__', None)):
             value = next(machine.input)
         else:
-            value = machine.input.get()
+            try:
+                value = machine.input.get(block=True, timeout=machine.io_timeout)
+            except Empty:
+                # Unable to input right now. Pause right before this instruction.
+                machine.state = MachineState.Blocked
+                machine.pc -= 2
+                return
 
         machine[result] = value
 
@@ -316,7 +323,12 @@ class Output(Operator):
     @staticmethod
     def operate(machine: Intcode, param: Parameter):
         value = machine[param]
-        machine.output.put(value)
+        try:
+            machine.output.put(value, block=True, timeout=machine.io_timeout)
+        except Full:
+            # Unable to output right now. Pause right before this instruction.
+            machine.state = MachineState.Blocked
+            machine.pc -= 2
 
 
 class JumpIfTrue(Operator):
