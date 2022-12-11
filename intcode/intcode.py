@@ -53,16 +53,16 @@ class Intcode:
         self.breakpoints = breakpoints
 
         self.__dict__.update(kwargs)
-        
+
     def __str__(self):
         lines = [
             f"{[' ', '>'][int(addr == self.pc)]}{addr: 4d}: {i}" for addr, i in self.all_instructions()
         ]
         return '\n'.join(lines)
-    
+
     def __repr__(self):
         return f"<Intcode pc:{self.pc}/{len(self.memory)} cycles:{self.num_cycles} state:{self.state.name}>"
-    
+
     def __getitem__(self, key: Union[int, slice, "Parameter"]) -> int:
         # Handle loading a slice of memory
         if type(key) is slice:
@@ -83,7 +83,7 @@ class Intcode:
         if addr >= len(self.memory):
             return 0
         return self.memory[addr]
-        
+
     def __setitem__(self, key: Union[int, "Parameter"], value: int):
         if type(key) is int:
             addr = key
@@ -101,7 +101,7 @@ class Intcode:
 
     def instruction_at(self, address: int) -> "Instruction":
         return Instruction(*self[address:address+3])
-    
+
     def all_instructions(self) -> List[Tuple[int, "Instruction"]]:
         instructions = []
         pc = 0
@@ -110,7 +110,7 @@ class Intcode:
             instructions.append((pc, instr))
             pc += instr.width
         return instructions
-    
+
     def step(self, verbose=False):
         instruction = self.instruction_at(self.pc)
         if verbose:
@@ -157,6 +157,16 @@ class Intcode:
 
     def output_str(self):
         return ''.join(map(chr, self.output_values()))
+
+    def put_ascii(self, value: str):
+        for c in value:
+            self.input.put(ord(c))
+
+    def get_ascii(self):
+        values = []
+        while not self.output.empty():
+            values.append(chr(self.output.get()))
+        return ''.join(values)
 
     def fork(self, **kwargs):
         return Intcode(program=self.memory.copy(), relative_base=self.relative_base, pc=self.pc, **kwargs)
