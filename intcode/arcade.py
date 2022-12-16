@@ -34,12 +34,16 @@ class ArcadeCabinet:
     x: int = 0
     y: int = 0
 
-    def __init__(self, stdscr: curses.window = None):
+    def __init__(self, stdscr: curses.window = None, color: bool = False):
         self.screen = np.zeros((24, 40), dtype=int)
         self.stdscr = stdscr
+        self.color = color
         signal.signal(signal.SIGWINCH, self.resize_handler)
+        if curses.has_colors():
+            for i in range(1, 8):
+                curses.init_pair(i, 0, i)
 
-    def put(self, value):
+    def put(self, value, **kwargs):
         if self.n_commands % 3 == 0:
             self.x = value
         elif self.n_commands % 3 == 1:
@@ -73,11 +77,15 @@ class ArcadeCabinet:
                     pass
 
     def print_tile(self, y, x):
-        tile_str = TILE_SYMBOLS[self.screen[y, x]]
+        tile = self.screen[y, x]
+        tile_str = TILE_SYMBOLS[tile]
         if self.stdscr:
             max_y, max_x = self.stdscr.getmaxyx()
             if self.y < max_y and self.x * 2 < max_x-1:
-                self.stdscr.addstr(self.y, self.x * 2, tile_str)
+                color_pair = 0
+                if tile == Tile.Block:
+                    color_pair = curses.color_pair(self.y % 6 + 1)
+                self.stdscr.addstr(self.y, self.x * 2, tile_str, color_pair)
                 self.stdscr.move(0, 0)
             self.stdscr.refresh()
 
@@ -144,6 +152,7 @@ def run_in_tty(stdscr: curses.window):
     parser = argparse.ArgumentParser()
     parser.add_argument('program_file', type=argparse.FileType('r'))
     parser.add_argument('--random', action="store_true")
+    parser.add_argument('--color', action="store_true")
     args = parser.parse_args()
     program = [*map(int, args.program_file.read().strip().split(','))]
 
@@ -153,7 +162,7 @@ def run_in_tty(stdscr: curses.window):
         joystick = RandomJoystick(delay=0.025)
     else:
         joystick = TTYJoystick(stdscr)
-    cabinet = ArcadeCabinet(stdscr)
+    cabinet = ArcadeCabinet(stdscr=stdscr, color=args.color)
     cpu = Intcode(program=program, input=joystick, output=cabinet)
     try:
         cpu.run()

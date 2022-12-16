@@ -147,6 +147,7 @@ class Intcode:
         self._thread.join()
 
     def output_values(self):
+        """deprecated"""
         values = []
         while not self.output.empty():
             values.append(self.output.get())
@@ -156,6 +157,7 @@ class Intcode:
         return values
 
     def output_str(self):
+        """deprecated"""
         return ''.join(map(chr, self.output_values()))
 
     def put_ascii(self, value: str):
