@@ -139,7 +139,7 @@ class TestPause(TestCase):
         cpu = Intcode([3, 4, 99], io_timeout=0.01)
         with self.subTest(msg="pause"):
             cpu.run()
-            self.assertEqual(cpu.state, MachineState.Paused)
+            self.assertEqual(cpu.state, MachineState.Blocked)
         with self.subTest(msg="resume"):
             cpu.input.put(1)
             cpu.run()
@@ -149,7 +149,7 @@ class TestPause(TestCase):
         cpu = Intcode([104, 1, 104, 1, 99], output=Queue(maxsize=1), io_timeout=0.01)
         with self.subTest(msg="pause"):
             cpu.run()
-            self.assertEqual(cpu.state, MachineState.Paused)
+            self.assertEqual(cpu.state, MachineState.Blocked)
         with self.subTest(msg="resume"):
             cpu.output.get()
             cpu.run()

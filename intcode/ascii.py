@@ -18,7 +18,7 @@ class CLIPeripheral:
                     break
 
     @staticmethod
-    def put(value):
+    def put(value, **kwargs):
         sys.stdout.write(chr(value))
         sys.stdout.flush()
 
