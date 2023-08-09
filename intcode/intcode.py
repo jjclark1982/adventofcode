@@ -1,7 +1,83 @@
 from queue import SimpleQueue, Full, Empty
-from typing import List, Tuple, Union, Iterator, Generator, Optional
+from typing import List, Tuple, Union, Iterator, Generator, Optional, Iterable
 from enum import Enum, IntEnum
 from threading import Thread
+
+
+class ParameterMode(IntEnum):
+    Position = 0
+    Immediate = 1
+    Relative = 2
+
+    def __str__(self):
+        return ["*", " ", "+"][self.value]
+
+
+class Parameter:
+    """
+    A Parameter is a combination of referencing mode and value.
+    It is used as the argument to Intcode indexing.
+    For example, Intcode([102, 3, 4, 5])[Parameter(1)] == 3
+    """
+
+    def __init__(self, value: int, mode: int = 0):
+        if isinstance(value, Parameter):
+            self.value = value.value
+            self.mode = ParameterMode(value.mode)
+        else:
+            self.value = value
+            self.mode = ParameterMode(mode)
+
+    def __str__(self):
+        return f"{str(self.mode)}{self.value}".rjust(4, " ")
+
+
+class Memory:
+    data: list
+    relative_base: int
+
+    def __init__(self, data: Iterable = None, relative_base: int = None):
+        self.data = list(data or [])
+        self.relative_base = relative_base or 0
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, key: Union[int, slice, Parameter]) -> Union[int, List[int]]:
+        # Handle loading a slice of memory
+        if type(key) is slice:
+            return [self[i] for i in range(key.start, key.stop + 1, key.step or 1)]
+        # Handle loading a single memory address
+        elif type(key) is int:
+            addr = key
+        # Handle loading specific parameter types
+        elif key.mode == ParameterMode.Immediate:
+            return key.value
+        elif key.mode == ParameterMode.Position:
+            addr = key.value
+        elif key.mode == ParameterMode.Relative:
+            addr = key.value + self.relative_base
+        else:
+            raise KeyError(f"Unsupported memory address {key}")
+
+        if addr >= len(self.data):
+            return 0
+        return self.data[addr]
+
+    def __setitem__(self, key: Union[int, Parameter], value: int):
+        if type(key) is int:
+            addr = key
+        elif key.mode == ParameterMode.Position:
+            addr = key.value
+        elif key.mode == ParameterMode.Relative:
+            addr = key.value + self.relative_base
+        else:
+            raise KeyError(f"Unsupported ParameterMode {key.mode}")
+
+        # Expand memory as needed (slow for very high addresses)
+        while len(self.data) <= addr:
+            self.data.append(0)
+        self.data[addr] = value
 
 
 class MachineState(Enum):
@@ -21,8 +97,7 @@ class Intcode:
 
     Usage: Intcode(program).run(input=[...]).output
     """
-    memory: List[int]
-    relative_base: int = 0
+    memory: Memory
     pc: int = 0
     state: MachineState = MachineState.Paused
     num_cycles: int = 0
@@ -32,8 +107,8 @@ class Intcode:
     _thread: Thread
     io_timeout: float = 1.0
 
-    def __init__(self, program: List[int], input=None, output=None, breakpoints=None, **kwargs):
-        self.memory = list(program)
+    def __init__(self, program: List[int], input=None, output=None, breakpoints=None, relative_base=None, **kwargs):
+        self.memory = Memory(program, relative_base)
 
         if input is None:
             self.input = SimpleQueue()
@@ -63,44 +138,14 @@ class Intcode:
     def __repr__(self):
         return f"<Intcode pc:{self.pc}/{len(self.memory)} cycles:{self.num_cycles} state:{self.state.name}>"
 
-    def __getitem__(self, key: Union[int, slice, "Parameter"]) -> int:
-        # Handle loading a slice of memory
-        if type(key) is slice:
-            return [self[i] for i in range(key.start, key.stop + 1, key.step or 1)]
-        # Handle loading a single memory address
-        elif type(key) is int:
-            addr = key
-        # Handle loading specific parameter types
-        elif key.mode == ParameterMode.Immediate:
-            return key.value
-        elif key.mode == ParameterMode.Position:
-            addr = key.value
-        elif key.mode == ParameterMode.Relative:
-            addr = key.value + self.relative_base
-        else:
-            raise NotImplementedError(f"Unsupported memory address {key}")
+    def __getitem__(self, key):
+        return self.memory[key]
 
-        if addr >= len(self.memory):
-            return 0
-        return self.memory[addr]
-
-    def __setitem__(self, key: Union[int, "Parameter"], value: int):
-        if type(key) is int:
-            addr = key
-        elif key.mode == ParameterMode.Position:
-            addr = key.value
-        elif key.mode == ParameterMode.Relative:
-            addr = key.value + self.relative_base
-        else:
-            raise NotImplementedError(f"Unsupported ParameterMode {key.mode}")
-
-        # Expand memory as needed (slow for very high addresses)
-        while len(self.memory) <= addr:
-            self.memory.append(0)
-        self.memory[addr] = value
+    def __setitem__(self, key, value):
+        self.memory[key] = value
 
     def instruction_at(self, address: int) -> "Instruction":
-        return Instruction(*self[address:address+3])
+        return Instruction(*self.memory[address:address+3])
 
     def all_instructions(self) -> List[Tuple[int, "Instruction"]]:
         instructions = []
@@ -171,35 +216,7 @@ class Intcode:
         return ''.join(values)
 
     def fork(self, **kwargs):
-        return Intcode(program=self.memory.copy(), relative_base=self.relative_base, pc=self.pc, **kwargs)
-
-
-class ParameterMode(IntEnum):
-    Position = 0
-    Immediate = 1
-    Relative = 2
-
-    def __str__(self):
-        return ["*", " ", "+"][self.value]
-
-
-class Parameter:
-    """
-    A Parameter is a combination of referencing mode and value.
-    It is used as the argument to Intcode indexing.
-    For example, Intcode([102, 3, 4, 5])[Parameter(1)] == 3
-    """
-
-    def __init__(self, value: int, mode: int = 0):
-        if isinstance(value, Parameter):
-            self.value = value.value
-            self.mode = ParameterMode(value.mode)
-        else:
-            self.value = value
-            self.mode = ParameterMode(mode)
-
-    def __str__(self):
-        return f"{str(self.mode)}{self.value}".rjust(4, " ")
+        return Intcode(program=self.memory.data.copy(), relative_base=self.memory.relative_base, pc=self.pc, **kwargs)
 
 
 class Instruction:
@@ -215,7 +232,7 @@ class Instruction:
         return self.operator.num_params + 1
 
     @staticmethod
-    def decode(instruction: int) -> Tuple[int, List[int]]:
+    def decode(instruction: int) -> Tuple[int, Tuple[int, int, int]]:
         opcode = instruction % 100
         modes = (
             (instruction // 100) % 10,
@@ -224,7 +241,7 @@ class Instruction:
         )
         return opcode, modes
 
-    def __init__(self, value: int, *param_values: Tuple[int]):
+    def __init__(self, value: int, *param_values: Tuple[int, int, int]):
         self.value = value
         opcode, self.modes = self.decode(value)
         self.operator = Operator(opcode)
@@ -245,7 +262,7 @@ class Instruction:
         args = [self.value] + [p.value for p in self.parameters]
         return f"Instruction({', '.join(str(a) for a in args)})"
 
-    def run(self, machine: Intcode):
+    def run(self, machine: "Intcode"):
         self.operator.operate(machine, *self.parameters)
 
 
@@ -254,40 +271,44 @@ class Operator:
     num_params: int = 0
     _by_opcode = {}
 
+    def __init_subclass__(cls, **kwargs):
+        Operator._by_opcode[cls.opcode] = cls
+
+    @staticmethod
+    def from_opcode(opcode: Optional[int]) -> type:
+        return Operator._by_opcode.get(opcode, None)
+
     def __new__(cls, opcode: int = None):
         """
         Operator(opcode) returns an object or class with an operate() method.
         """
         if cls is Operator:
             OpClass = Operator.from_opcode(opcode)
-            if OpClass.opcode is not None:
+            if OpClass:
                 return OpClass
         return super().__new__(cls)
 
-    def __init_subclass__(cls, **kwargs):
-        Operator._by_opcode[cls.opcode] = cls
+    def __init__(self, opcode: Optional[int] = None):
+        if self.opcode is None or opcode == self.opcode:
+            self.opcode = opcode
 
-    @staticmethod
-    def from_opcode(opcode) -> type:
-        return Operator._by_opcode.get(opcode, NoOp)
-
-    @classmethod
-    def name(cls):
-        return cls.__name__
+    def name(self=None):
+        if isinstance(self, Operator):
+            if self.opcode != self.__class__.opcode:
+                return str(self.opcode)
+        else:
+            return self.__class__.__name__
 
     def operate(self, machine: Intcode, *params: Tuple[Parameter, ...]):
         raise ValueError(f"Invalid instruction with opcode {self.opcode}")
 
 
-class NoOp(Operator):
-    opcode = None
-    num_params = 0
-
-    def name(self=None):
-        return str((self or NoOp).opcode)
-
-    def __init__(self, opcode=None):
-        self.opcode = opcode
+# class NoOp(Operator):
+#     opcode = None
+#     num_params = 0
+#
+#     def name(self=None):
+#         return str((self or NoOp).opcode)
 
 
 class Add(Operator):
@@ -387,7 +408,7 @@ class AdjustRelativeBase(Operator):
 
     @staticmethod
     def operate(machine: Intcode, value: Parameter):
-        machine.relative_base += machine[value]
+        machine.memory.relative_base += machine[value]
 
 
 class Halt(Operator):

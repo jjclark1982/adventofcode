@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from intcode import Intcode, ParameterMode, Parameter, Instruction, Operator, Output, MachineState
+from intcode import Intcode, Memory, ParameterMode, Parameter, Instruction, Operator, Output, MachineState
 from queue import Queue
 
 
@@ -17,7 +17,7 @@ class TestOperator(TestCase):
         self.assertGreater(len(operations), 0)
         for cls in Operator.__subclasses__():
             with self.subTest(msg=f"{cls.opcode} {cls.__name__}"):
-                op = Operator(cls.opcode)
+                op = Operator.from_opcode(cls.opcode)
                 self.assertIsNotNone(op.name())
                 self.assertTrue(callable(op.operate))
 
@@ -38,20 +38,19 @@ class TestInstruction(TestCase):
 
 class TestParameter(TestCase):
     def test_position_mode(self):
-        machine = Intcode([1, 2, 3])
+        memory = Memory([1, 2, 3])
         param = Parameter(1, ParameterMode.Position)
-        self.assertEqual(machine[param], 2)
+        self.assertEqual(memory[param], 2)
 
     def test_immediate_mode(self):
-        machine = Intcode([1, 2, 3])
+        memory = Memory([1, 2, 3])
         param = Parameter(1, ParameterMode.Immediate)
-        self.assertEqual(machine[param], 1)
+        self.assertEqual(memory[param], 1)
 
     def test_relative_mode(self):
-        machine = Intcode([1, 2, 3])
-        machine.relative_base = 1
+        memory = Memory([1, 2, 3], relative_base=1)
         param = Parameter(1, ParameterMode.Relative)
-        self.assertEqual(machine[param], 3)
+        self.assertEqual(memory[param], 3)
 
 
 class TestProgram(TestCase):
@@ -65,7 +64,7 @@ class TestProgram(TestCase):
                 self.assertListEqual(output, expected_output)
         if expected_memory is not None:
             with self.subTest(msg="resulting memory matches expectation"):
-                self.assertListEqual(machine.memory, expected_memory)
+                self.assertListEqual(machine.memory.data, expected_memory)
 
     def test_empty_program(self):
         self.check_program([])
